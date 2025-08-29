@@ -1,5 +1,3 @@
-
-
 import { render } from 'preact';
 import { html } from 'htm/preact';
 import { useState, useCallback, useEffect, useRef } from 'preact/hooks';
@@ -11,21 +9,6 @@ const mockUpdates = [
   { state: "RUNNING", phase: "Ingesting data...", progress: 25 },
   { state: "RUNNING", phase: "Validating prices...", progress: 75 },
   { state: "COMPLETED", phase: "Done", progress: 100 }
-];
-
-const mockProducts = [
-  { sku: 'AB123 100', productName: 'Retro Runner - White', brand: 'Nike / Jordan', mapPriceCents: 12000, violatingPriceCents: 11999, status: 'VIOLATION', color: 'White', gender: 'Men', category: 'Running', violatingSource: 'RICS' },
-  { sku: 'CD456-200', productName: 'Trail Blazer High', brand: 'Adidas', mapPriceCents: 15000, violatingPriceCents: null, status: 'OK', color: 'Black', gender: 'Unisex', category: 'Basketball', violatingSource: null },
-  { sku: 'EF789-300', productName: 'Classic Suede', brand: 'Puma', mapPriceCents: null, violatingPriceCents: null, status: 'MAP_MISSING', color: 'Red', gender: 'Women', category: 'Lifestyle', violatingSource: null },
-  { sku: 'GH012 400', productName: 'Air Max 90', brand: 'Nike / Jordan', mapPriceCents: 13000, violatingPriceCents: 12500, status: 'VIOLATION', color: 'Infrared', gender: 'Men', category: 'Lifestyle', violatingSource: 'SCOM' },
-  { sku: 'IJ345-500', productName: 'Ultraboost 21', brand: 'Adidas', mapPriceCents: 18000, violatingPriceCents: null, status: 'OK', color: 'Triple Black', gender: 'Men', category: 'Running', violatingSource: null },
-  { sku: 'KL678-600', productName: 'Chuck Taylor All Star', brand: 'Converse', mapPriceCents: 6000, violatingPriceCents: null, status: 'OK', color: 'White', gender: 'Unisex', category: 'Skate', violatingSource: null },
-  { sku: 'MN901-700', productName: 'Old Skool', brand: 'Vans', mapPriceCents: 6500, violatingPriceCents: 6499, status: 'VIOLATION', color: 'Black/White', gender: 'Unisex', category: 'Skate', violatingSource: 'RICS' },
-  { sku: 'OP234-800', productName: 'Gel-Kayano 28', brand: 'ASICS', mapPriceCents: 16000, violatingPriceCents: null, status: 'OK', color: 'Blue', gender: 'Men', category: 'Running', violatingSource: null },
-  { sku: 'QR567-900', productName: 'Fresh Foam 880v11', brand: 'New Balance', mapPriceCents: 13000, violatingPriceCents: null, status: 'OK', color: 'Grey', gender: 'Women', category: 'Running', violatingSource: null },
-  { sku: 'ST890 111', productName: 'Jordan 1 Mid', brand: 'Nike / Jordan', mapPriceCents: 11500, violatingPriceCents: 11000, status: 'VIOLATION', color: 'Bred', gender: 'Men', category: 'Basketball', violatingSource: 'SCOM' },
-  { sku: 'UV123-222', productName: 'Superstar', brand: 'Adidas', mapPriceCents: null, violatingPriceCents: null, status: 'MAP_MISSING', color: 'White/Black', gender: 'Unisex', category: 'Lifestyle', violatingSource: null },
-  { sku: 'WX456-333', productName: 'RS-X³', brand: 'Puma', mapPriceCents: 11000, violatingPriceCents: null, status: 'OK', color: 'Multi', gender: 'Men', category: 'Lifestyle', violatingSource: null },
 ];
 
 const mockTolerances = [
@@ -45,8 +28,6 @@ const mockDataSources = [
 
 const SYSTEM_FIELDS = ['sku', 'productName', 'brand', 'mapPriceCents', 'violatingPriceCents', 'status', 'color', 'gender', 'category', 'styleCode'];
 
-
-const allBrands = [...new Set(mockProducts.map(p => p.brand))];
 const allStatuses = ["OK", "VIOLATION", "MAP_MISSING"];
 
 const brandMappings = {
@@ -271,15 +252,15 @@ function ProductDetailModal({ isOpen, onClose, product }) {
             };
 
             const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt,
+                model: "gemini-1.5-flash",
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: responseSchema,
                 },
             });
 
-            const result = JSON.parse(response.text);
+            const result = JSON.parse(response.candidates[0].content.parts[0].text);
             setMarketData(result);
             setMarketCheckState('done');
         } catch (error) {
@@ -384,26 +365,19 @@ function AnalyticsScorecard({ products }) {
     const totalProducts = products.length;
     const totalViolations = violations.length;
 
-    // 1. Price Mix (Violating vs OK)
     const violationPercentage = totalProducts > 0 ? (totalViolations / totalProducts) * 100 : 0;
 
-    // 2. Violations by Source
     const violationsBySource = violations.reduce((acc, p) => {
         const source = p.violatingSource || 'Unknown';
         acc[source] = (acc[source] || 0) + 1;
         return acc;
-    // FIX: Add type assertion to reducer's initial value to prevent type errors.
     }, {} as Record<string, number>);
 
-    // 3. Sale (Violating) Items by Brand
     const violationsByBrand = violations.reduce((acc, p) => {
         acc[p.brand] = (acc[p.brand] || 0) + 1;
         return acc;
-    // FIX: Add type assertion to reducer's initial value to prevent type errors.
     }, {} as Record<string, number>);
     
-    // 4. Top Violation Insight
-    // FIX: Explicitly cast sorting values to Number to prevent type errors in arithmetic operations.
     const topViolatingBrand = Object.entries(violationsByBrand).sort((a, b) => Number(b[1]) - Number(a[1]))[0] || ['N/A', 0];
 
     return html`
@@ -427,7 +401,6 @@ function AnalyticsScorecard({ products }) {
             <div class="scorecard-item">
                 <h4>Violating Items by Brand</h4>
                 <ul class="metric-list">
-                    {/* FIX: Explicitly cast sorting values to Number to prevent type errors in arithmetic operations. */}
                     ${Object.entries(violationsByBrand).sort((a, b) => Number(b[1]) - Number(a[1])).map(([brand, count]) => html`
                         <li key=${brand}><span>${brand}</span><span>${count}</span></li>
                     `)}
@@ -442,8 +415,18 @@ function AnalyticsScorecard({ products }) {
     `;
 }
 
-function DashboardView({ jobState, products, filteredProducts, handleRunCheck, openModal, setIsExportModalOpen, handleRowClick, searchTerm, setSearchTerm, handleBrandsChange, handleStatusesChange, exportButtonRef, sortConfig, handleSort }) {
-    const lastUpdated = "2025-08-28 3:44 PM";
+function DashboardView({ jobState, products, filteredProducts, handleRunCheck, openModal, setIsExportModalOpen, handleRowClick, searchTerm, setSearchTerm, handleBrandsChange, handleStatusesChange, exportButtonRef, sortConfig, handleSort, allBrands }) {
+    const [lastUpdated, setLastUpdated] = useState("Loading...");
+
+    useEffect(() => {
+        // Simulate fetching the timestamp
+        setTimeout(() => {
+            const now = new Date();
+            const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const formattedTime = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            setLastUpdated(`${formattedDate} ${formattedTime}`);
+        }, 1000);
+    }, []);
     
     const getSortArrow = (key) => {
         if (sortConfig.key !== key) return '';
@@ -484,9 +467,7 @@ function DashboardView({ jobState, products, filteredProducts, handleRunCheck, o
                                 <th onClick=${() => handleSort('productName')}>Product Name ${getSortArrow('productName')}</th>
                                 <th onClick=${() => handleSort('brand')}>Brand ${getSortArrow('brand')}</th>
                                 <th onClick=${() => handleSort('status')}>Status ${getSortArrow('status')}</th>
-                                <th onClick=${() => handleSort('color')}>Color ${getSortArrow('color')}</th>
-                                <th onClick=${() => handleSort('gender')}>Gender ${getSortArrow('gender')}</th>
-                                <th onClick=${() => handleSort('category')}>Category ${getSortArrow('category')}</th>
+                                <th onClick=${() => handleSort('violatingSource')}>Violating Source ${getSortArrow('violatingSource')}</th>
                                 <th onClick=${() => handleSort('mapPriceCents')}>MAP Price ${getSortArrow('mapPriceCents')}</th>
                                 <th onClick=${() => handleSort('violatingPriceCents')}>Violating Price ${getSortArrow('violatingPriceCents')}</th>
                             </tr>
@@ -498,14 +479,12 @@ function DashboardView({ jobState, products, filteredProducts, handleRunCheck, o
                                 <td>${product.productName}</td>
                                 <td>${product.brand}</td>
                                 <td><span class="status-badge status-${product.status.toLowerCase()}">${product.status.replace('_', ' ')}</span></td>
-                                <td>${product.color}</td>
-                                <td>${product.gender}</td>
-                                <td>${product.category}</td>
+                                <td>${product.violatingSource || 'N/A'}</td>
                                 <td>${formatCurrency(product.mapPriceCents)}</td>
                                 <td class=${product.status === 'VIOLATION' ? 'violation-price' : ''}>${formatCurrency(product.violatingPriceCents)}</td>
                             </tr>
                             `) : html`
-                            <tr><td colspan="9">No products found.</td></tr>
+                            <tr><td colspan="7">No products found.</td></tr>
                             `}
                         </tbody>
                     </table>
@@ -689,6 +668,7 @@ function App() {
   const [tolerances, setTolerances] = useState(mockTolerances);
   const [dataSources, setDataSources] = useState(mockDataSources);
   const [sortConfig, setSortConfig] = useState({ key: 'sku', direction: 'ascending' });
+  const [allBrands, setAllBrands] = useState([]);
   
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -732,31 +712,46 @@ function App() {
     setFilteredProducts(result);
   }, [products, debouncedSearchTerm, selectedBrands, selectedStatuses, sortConfig]);
 
-  // FIX: Make onComplete parameter optional to match usage where it is not always provided.
+  useEffect(() => {
+      if (products.length > 0) {
+          setAllBrands([...new Set(products.map(p => p.brand))]);
+      }
+  }, [products]);
+
   const runJob = useCallback((onComplete?) => {
     setJobState('running');
     setProgress(0);
     setPhase('Starting...');
-    if (products.length > 0) setProducts([]); // Clear old results if they exist
-    
+    if (products.length > 0) setProducts([]);
+
     let updateIndex = 0;
     const runUpdate = () => {
       if (updateIndex >= mockUpdates.length) return;
       const update = mockUpdates[updateIndex];
       setProgress(update.progress);
       setPhase(update.phase);
+
       if (update.state === 'COMPLETED') {
-        setTimeout(() => {
-          setJobState('idle');
-          setProducts(mockProducts);
-          setNotificationMessage('Price check complete. 4 violations found.');
-          setShowNotification(true);
-          setTimeout(() => {
-            setShowNotification(false);
-            setNotificationMessage('');
-          }, 5000);
-          if (onComplete) onComplete();
-        }, 500);
+        fetch('/api/products')
+          .then(response => response.json())
+          .then(data => {
+            setProducts(data);
+            setJobState('idle');
+            const violationCount = data.filter(p => p.status === 'VIOLATION').length;
+            setNotificationMessage(`Price check complete. ${violationCount} violations found.`);
+            setShowNotification(true);
+            setTimeout(() => {
+              setShowNotification(false);
+              setNotificationMessage('');
+            }, 5000);
+            if (onComplete) onComplete();
+          })
+          .catch(error => {
+            console.error("Failed to fetch products:", error);
+            setJobState('idle');
+            setNotificationMessage('Error: Could not fetch product data.');
+            setShowNotification(true);
+          });
       } else {
          setTimeout(runUpdate, 1500);
       }
@@ -829,7 +824,6 @@ function App() {
 
   const handleRowClick = (product) => {
       setSelectedProduct(product);
-      // FIX: The function returned by openModal expects 0 arguments. Call it without arguments.
       openModal(setIsProductModalOpen)();
   };
   
@@ -841,7 +835,7 @@ function App() {
               return html`<${DataSourcePanel} sources=${dataSources} onSaveChanges=${handleSaveDataSource} onBack=${() => setCurrentView('dashboard')} />`;
           case 'dashboard':
           default:
-              return html`<${DashboardView} jobState=${jobState} products=${products} filteredProducts=${filteredProducts} handleRunCheck=${handleRunCheck} openModal=${openModal} setIsExportModalOpen=${setIsExportModalOpen} handleRowClick=${handleRowClick} searchTerm=${searchTerm} setSearchTerm=${setSearchTerm} handleBrandsChange=${handleBrandsChange} handleStatusesChange=${handleStatusesChange} exportButtonRef=${exportButtonRef} sortConfig=${sortConfig} handleSort=${handleSort} />`;
+              return html`<${DashboardView} jobState=${jobState} products=${products} filteredProducts=${filteredProducts} handleRunCheck=${handleRunCheck} openModal=${openModal} setIsExportModalOpen=${setIsExportModalOpen} handleRowClick=${handleRowClick} searchTerm=${searchTerm} setSearchTerm=${setSearchTerm} handleBrandsChange=${handleBrandsChange} handleStatusesChange=${handleStatusesChange} exportButtonRef=${exportButtonRef} sortConfig=${sortConfig} handleSort=${handleSort} allBrands=${allBrands} />`;
       }
   };
 
@@ -859,7 +853,7 @@ function App() {
                 <${Icon} path="M3 17v2h18v-2H3m4-4v2h10v-2H7m4-4v2h2V9h-2m10-4H1v2h22V5Z"/>
             </button>
             <button class="icon-button" onClick=${openModal(setIsSettingsModalOpen)} aria-label="Open Column Mapping Settings">
-                <${Icon} path="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.44,0.17-0.48,0.41L9.2,5.77C8.61,6.01,8.08,6.33,7.58,6.71L5.19,5.75C4.97,5.68,4.72,5.75,4.6,5.97L2.68,9.29 c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.78,11.76,4.76,12.08,4.76,12.4c0,0.32,0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.04,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.48-0.41l0.36-2.54c0.59-0.24,1.12-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0.01,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                <${Icon} path="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.44,0.17-0.48,0.41L9.2,5.77C8.61,6.01,8.08,6.33,7.58,6.71L5.19,5.75C4.97,5.68,4.72,5.75,4.6,5.97L2.68,9.29 c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.78,11.76,4.76,12.08,4.76,12.4c0,0.32,0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.04,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17-0.48,0.41l0.36-2.54c0.59-0.24,1.12-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0.01,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
             </button>
         </div>
       </div>
